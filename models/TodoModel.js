@@ -1,7 +1,10 @@
-import mongoose from 'mongoose'
+import mongoose from 'mongoose';
 
 const todoSchema = new mongoose.Schema({
-    name: String,
+    name: {
+        type: String,
+        required: true
+    },
     done: {
         type: Boolean,
         default: false
