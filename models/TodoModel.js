@@ -5,8 +5,13 @@ const todoSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    owner: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+    },
     done: {
         type: Boolean,
+        required: true,
         default: false
     }
 })

@@ -6,7 +6,7 @@ import userRoutes from './routes/UserRoutes.js';
 const app = express();
 
 app.use(express.json());
-app.use('', todoRoutes);
+app.use('/todo', todoRoutes);
 app.use('/auth', userRoutes)
 
 app.listen(3000);
