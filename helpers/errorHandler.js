@@ -18,7 +18,7 @@ import JWT from 'jsonwebtoken';
 import { MongoServerError } from 'mongodb';
 
 const { TokenExpiredError, JsonWebTokenError } = JWT
-const { StrictModeError, ValidationError } = mongoose.Error;
+const { StrictModeError, ValidationError, CastError } = mongoose.Error;
 
 export class AuthError extends Error {
     constructor(type) {
@@ -66,6 +66,7 @@ export default (error, req, res, next) => {
     const resp = respond(res);
 
     console.log(error.constructor)
+    // console.log(error)
 
     switch(error.constructor) {
         case AuthError:
@@ -99,6 +100,8 @@ export default (error, req, res, next) => {
             if (error.code === 11000) return resp(409, 'User already registered');
             next()
             break;
+        case CastError:
+            return resp(400, 'Invalid resource ' + error.path.replace(/^_/,''));
         default:
             console.log(error);
             resp(500)
