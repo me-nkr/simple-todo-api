@@ -1,3 +1,5 @@
+import { AuthError, InvalidRequestError, NotFoundError } from "../helpers/errorHandler.js";
+
 export default class Todo {
 
     constructor(model) {
@@ -10,34 +12,38 @@ export default class Todo {
     }
 
     createTodo = async (req, res, next) => {
-        if (req.body.todos) {
-            const todos = [];
-            for await (let todo of req.body.todos) {
-                const item = new this.model({
-                    name: todo,
-                    owner: req.user.id
-                });
-                await item.save()
-                todos.push(item);
-            }
-            res.status(201).json(todos);
-        }
-        else res.status(500).json({ message: 'something went wrong' });
-    }
-    
-    updateTodo = async (req, res, next) => {
-        const todo = await this.model.findOneAndUpdate({ owner: req.user.id, _id: req.params.id }, req.body, { new: true });
+        try {
 
-        if (todo) {
-            res.json(todo);
-        }
-        else res.status(404).json({ message: 'item not found' });
+            if (!req.body.todos || !req.body.todos.length || !req.body.todos.every(todo => typeof todo === 'string'))
+                throw new InvalidRequestError('Invalid request body');
+
+            const todos = await this.model.create(req.body.todos.map(todo => ({ name: todo, owner: req.user.id })))
+            res.status(201).json(todos);
+
+        } catch (error) { next(error) }
+    }
+
+    updateTodo = async (req, res, next) => {
+        try {
+
+            if (! await this.model.exists({ _id: req.params.id })) throw new NotFoundError('Todo');
+            const todo = await this.model.findOneAndUpdate({ owner: req.user.id, _id: req.params.id }, req.body, { new: true });
+
+            if (todo) res.json(todo);
+            else throw new AuthError('permission');
+
+        } catch (error) { next(error) }
     }
 
     deleteTodo = async (req, res, next) => {
-        const todo = await this.model.findOneAndDelete({ owner: req.user.id, _id: req.params.id });
+        try {
 
-        if (todo) res.json(todo);
-        else res.status(404).json({ message: 'item not found' });
+            if (! await this.model.exists({ _id: req.params.id })) throw new NotFoundError('Todo');
+            const todo = await this.model.findOneAndDelete({ owner: req.user.id, _id: req.params.id });
+
+            if (todo) res.json(todo);
+            else throw new AuthError('permission');
+
+        } catch (error) { next(error) }
     }
 }

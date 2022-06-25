@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
+import { AuthError, InvalidAuthError, InvalidRequestError } from '../helpers/errorHandler.js'
 
 const secret = process.env.JWT_SECRET;
 
@@ -9,104 +9,64 @@ export default class User {
     }
 
     createUser = async (req, res, next) => {
-        const { name, email, password } = req.body;
-        if (!(name && email && password)) res.status(400).json({ message: 'invalid request' });
+        try {
 
-        else {
+            const { name, email, password } = req.body;
 
-            try {
+            await this.model.create({ name, email, password })
 
-                const user = new this.model()
+            res.status(201).end();
 
-                user.name = name;
-                user.email = email;
-
-                const salt = await bcrypt.genSalt(10);
-                user.password = await bcrypt.hash(password, salt);
-
-                await user.save();
-                res.status(201).end();
-
-            }
-            catch (error) {
-                res.status(500).json({ message: 'something went wrong' });
-            }
-
-        }
+        } catch (error) { next(error) }
     }
 
     loginUser = async (req, res, next) => {
-        const { email, password } = req.body;
-        if (!(email && password)) res.status(400).json({ message: 'invalid request' });
-
-        else {
-
-            try {
-
-                const user = await this.model.findOne({ email: email });
-                if (!user) return res.status(401).json({ message: 'Unauthorized: user not found' });
-
-                const passwordMatch = await bcrypt.compare(password, user.password);
-                if (!passwordMatch) return res.status(401).json({ message: 'Unautorized: invalid password' });
-
-                const token = jwt.sign({
-                    id: user.id,
-                    name: user.name,
-                    email: user.email
-                }, secret, { expiresIn: '1h' })
-
-                res.json({
-                    token: token,
-                    expire: new Date(jwt.decode(token).exp*1000).toString()
-                });
-
-            }
-            catch (error) {
-                res.status(500).json({ message: 'something went wrong' });
-            }
-        }
-    }
-
-    sayWelcome = (req, res, next) => {
-        const token = req.headers['authorization'] && req.headers['authorization'].split(' ')[1]
-
-        if (!token) return res.status(401).json({ message: 'Unauthorized: no token provided' });
-
         try {
 
-            const data = jwt.verify(token, secret);
+            const credentials = req.headers['authorization'];
 
-            res.json({ message: 'Welcome ' + data.name });
+            if (!credentials || credentials.split(' ')[0] !== 'Basic') throw new InvalidAuthError();
 
-        }
-        catch (error) {
-            if (error.name === 'TokenExpiredError' || error.name === 'JsonWebTokenError' || error.name === 'NotBeforeError') return res.status(401).json({ message: 'Unathorized: invalid token' });
-            else res.status(500).json({ message: 'something went wrong' });
-        }
+            const [email, password] = Buffer.from(credentials.split(' ')[1], 'base64').toString().split(':');
 
+            if (!(email && password)) throw new InvalidAuthError();
+
+            const user = await this.model.findOne({ email: email });
+            if (!user) throw new AuthError('user');
+
+            if (! await user.verifyPassword(password)) throw new AuthError('password');
+
+            const token = jwt.sign({
+                id: user.id,
+                name: user.name,
+                email: user.email
+            }, secret, { expiresIn: '1h' })
+
+            res.json({
+                token: token,
+                expire: new Date(jwt.decode(token).exp * 1000).toString()
+            });
+
+        } catch (error) { next(error) }
     }
+
+    sayWelcome = (req, res, next) => res.json({ message: 'Welcome ' + req.user.name });
 
     static authenticate(req, res, next) {
-        const token = req.headers['authorization'] && req.headers['authorization'].split(' ')[1]
 
-        if (!token) return res.status(401).json({ message: 'Unauthorized: no token provided' });
+        const credentials = req.headers['authorization'];
 
-        try {
+        if (!credentials || credentials.split(' ')[0] !== 'Bearer') throw new InvalidAuthError();
 
-            const data = jwt.verify(token, secret);
+        const token = credentials.split(' ')[1];
 
-            req.user = {
-                id: data.id
-            }
+        if (!token) throw new InvalidAuthError();
+
+            const { id, name, email } = jwt.verify(token, secret);
+
+            req.user = { id, name, email }
 
             next();
-
-        }
-        catch (error) {
-            if (error.name === 'TokenExpiredError' || error.name === 'JsonWebTokenError' || error.name === 'NotBeforeError') return res.status(401).json({ message: 'Unathorized: invalid token' });
-            else res.status(500).json({ message: 'something went wrong' });
-        }
-
 
     }
 }

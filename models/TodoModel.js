@@ -14,6 +14,6 @@ const todoSchema = new mongoose.Schema({
         required: true,
         default: false
     }
-})
+}, { strict: 'throw' });
 
 export default mongoose.model('Todo', todoSchema);
