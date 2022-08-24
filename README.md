@@ -1,6 +1,6 @@
 # Simple Todo API
 
-A simple multiuser todo management API server
+A simple todo management API with authentication and collabration
 
 ## Tech Stack
 - Runtime Environment: Node
